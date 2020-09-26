@@ -1,7 +1,8 @@
 [YOLOV2](https://arxiv.org/pdf/1612.08242.pdf) implementation for Object Detection using TensorFlow 2
 
 #### Train
-* Change `classes` variable in `utils\config.py` based on your dataset
+* Change variables in `utils\config.py` based on your dataset
+* Run `python generate.py` for generating tf record
 * Run `python train.py` for training
 
 #### Test

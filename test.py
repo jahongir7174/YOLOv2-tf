@@ -59,14 +59,14 @@ if __name__ == '__main__':
     inputs = tf.keras.layers.Input((config.image_size, config.image_size, 3))
     outputs = nn.build_model(inputs, len(config.classes), False)
     model = tf.keras.models.Model(inputs, outputs)
-    model.load_weights(join('weights', 'model3.h5'))
-    path = '../Dataset/VOC2012/IMAGES/2008_000009.jpg'
+    model.load_weights(join('weights', 'model15.h5'))
+    path = '../Dataset/VOC2012/IMAGES/2007_000027.jpg'
     image = cv2.imread(path)
     image = image[:, :, ::-1]
     image = util.resize(image)
     input_image = image.astype('float32') / 127.5 - 1.0
     input_image = np.expand_dims(input_image, 0)
-    boxes, classes = get_box(model.predict_on_batch(input_image), 0.1, 0.1)
+    boxes, classes = get_box(model.predict_on_batch(input_image), 0.45, 0.4)
     for i, box in enumerate(boxes):
         x1 = int(box[0])
         y1 = int(box[1])
