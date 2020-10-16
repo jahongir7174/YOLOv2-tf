@@ -3,19 +3,20 @@ import sys
 from os.path import exists
 from os.path import join
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.utils import get_file
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-import numpy as np
+np.random.seed(12345)
+tf.random.set_seed(12345)
 
 from nets import nn
-from tensorflow.keras.utils import get_file
-from utils import data_loader, util, config
-
-tf.random.set_seed(config.seed)
+from utils import config
+from utils import data_loader
+from utils import util
 
 tf_path = join(config.data_dir, 'record')
 tf_paths = [join(tf_path, name) for name in os.listdir(tf_path) if name.endswith('.tf')]
@@ -23,14 +24,18 @@ tf_paths = [join(tf_path, name) for name in os.listdir(tf_path) if name.endswith
 np.random.shuffle(tf_paths)
 
 strategy = tf.distribute.MirroredStrategy()
-nb_gpu = strategy.num_replicas_in_sync
-global_batch = nb_gpu * config.batch_size
+num_replicas = strategy.num_replicas_in_sync
+global_batch = num_replicas * config.batch_size
+
+steps = len(tf_paths) // global_batch
+
+lr = nn.CosineLrSchedule(steps)
 
 dataset = data_loader.TFRecordLoader(global_batch, config.epochs, len(config.classes)).load_data(tf_paths)
 dataset = strategy.experimental_distribute_dataset(dataset)
 
 with strategy.scope():
-    optimizer = tf.keras.optimizers.RMSprop(learning_rate=1e-6)
+    optimizer = tf.keras.optimizers.Adam(lr, beta_1=0.935, decay=0.0005)
     inputs = tf.keras.layers.Input((config.image_size, config.image_size, 3))
     outputs = nn.build_model(inputs, len(config.classes), True)
     model = tf.keras.models.Model(inputs, outputs)
@@ -90,7 +95,7 @@ with strategy.scope():
 
     def compute_loss(mask, box, one_hot, grid, y_pred):
         per_example_loss = d_loss_object(mask, box, one_hot, grid, y_pred)
-        scale_loss = tf.reduce_sum(per_example_loss) * 1. / nb_gpu
+        scale_loss = tf.reduce_sum(per_example_loss) * 1. / num_replicas
 
         return scale_loss
 
@@ -118,7 +123,6 @@ with strategy.scope():
 
 
 def main():
-    steps = 1000
     print(f"--- Training with {steps} Steps ---")
     if not exists('weights'):
         os.makedirs('weights')

@@ -1,3 +1,5 @@
+import math
+
 import tensorflow as tf
 from tensorflow.keras import backend
 from tensorflow.keras import layers
@@ -242,3 +244,25 @@ def detection_loss(mask, boxes, one_hot, grid, y_pred):
     conf_loss = no_object_loss + object_loss
     loss = conf_loss + class_loss + coord_loss
     return loss
+
+
+class CosineLrSchedule(tf.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, warmup_step):
+        super().__init__()
+        self.lr_min = 1e-5
+        self.lr_max = 1e-3
+        self.warmup_step = warmup_step
+        self.decay_steps = tf.cast(warmup_step * (config.epochs - 1), tf.float32)
+
+    def __call__(self, step):
+        cos = tf.cos(math.pi * (tf.cast(step, tf.float32) - self.warmup_step) / self.decay_steps)
+        linear_warmup = tf.cast(step, dtype=tf.float32) / self.warmup_step * self.lr_max
+        cos_lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1 + cos / self.decay_steps)
+
+        return tf.where(step < self.warmup_step, linear_warmup, cos_lr)
+
+    def get_config(self):
+        return {"lr_min": self.lr_min,
+                "lr_max": self.lr_max,
+                "decay_steps": self.decay_steps,
+                "lr_warmup_step": self.warmup_step}
